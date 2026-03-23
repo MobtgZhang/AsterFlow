@@ -8,7 +8,7 @@ Julia 前端的深度学习运行时骨架：**张量、eager 自动微分、按
 |------|------|
 | [`Project.toml`](Project.toml)、[`src/`](src/)、[`ext/`](ext/)、[`test/`](test/) | **Julia 包**（与 [Flux.jl](https://github.com/FluxML/Flux.jl) 等一致：包根在仓库根）：用户 API、dispatcher、autograd、`layers` / `optimise` / `transformer`、`compile` 占位、`src/data` 数据加载等。 |
 | [`libasterflow/`](libasterflow/) | **C ABI 运行时**：`libasterflow` 共享库，与 Julia `ccall` 对接（可选加速路径）。 |
-| [`aster_native/`](aster_native/) | **原生张量运行时（骨架）**：`AsterNative` 实现草稿、CMake 目标 `af_native_tensor`；含与 ATen 概念对齐的参考头文件。 |
+| [`aster_native/`](aster_native/) | **原生张量运行时（骨架）**：`AsterNative` C++17 子工程、CMake 目标 `af_native_tensor`（`TensorImpl` / `Storage` / 调度与设备占位等）。 |
 | [`docs/`](docs/) | 设计原则、架构、构建与安装。 |
 | [`examples/`](examples/) | 示例脚本。 |
 

@@ -1,6 +1,7 @@
 add_library(af_native_tensor STATIC
   Context.cpp
   Device.cpp
+  core/Storage.cpp
   core/TensorImpl.cpp
   accelerator/Accelerator.cpp
   native/native_stub.cpp

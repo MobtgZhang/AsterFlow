@@ -1,21 +1,12 @@
 #pragma once
 
-#include <cstdint>
+#include <AsterNative/core/DispatchKey.h>
 
 namespace asterflow {
 namespace native {
 
-/** 逻辑执行后端（具体 kernel 由各后端子目录注册）。 */
-enum class Backend : std::uint8_t {
-  CPU = 0,
-  CUDA,
-  HIP,
-  MPS,
-  XPU,
-  Vulkan,
-  Meta,
-  Count,
-};
+/** 逻辑执行后端；与 `DispatchKey` 同义，保留该名称以便与设备/算子注册文档一致。 */
+using Backend = DispatchKey;
 
 } // namespace native
 } // namespace asterflow

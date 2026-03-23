@@ -1,5 +1,6 @@
 #pragma once
 
+#include <AsterNative/core/DispatchKey.h>
 #include <string>
 
 namespace asterflow {
@@ -9,13 +10,13 @@ namespace ops {
 using KernelId = std::string;
 
 /**
- * 算子注册表占位：按 (算子名, 后端) 绑定可调用对象；具体签名在实现期细化。
+ * 算子注册表占位：按 (算子名, DispatchKey) 绑定可调用对象；具体签名在实现期细化。
  */
 class OpRegistry {
 public:
   static OpRegistry& instance();
 
-  // void register_fn(KernelId id, Backend b, ...);
+  // void register_fn(KernelId id, DispatchKey key, ...);
 
 private:
   OpRegistry() = default;
