@@ -1,0 +1,32 @@
+name = "AsterFlow"
+uuid = "c4f8e2a1-3b9d-4e7f-8a2c-1d0e9f8a7b6c"
+version = "0.1.0"
+authors = ["AsterFlow contributors"]
+
+[deps]
+BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[weakdeps]
+AMDGPU = "21141c5a-9aad-4549-92e5-d63d79b834c5"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840bb"
+
+[extensions]
+AsterFlowCUDAExt = "CUDA"
+AsterFlowROCMExt = "AMDGPU"
+
+[compat]
+BSON = "0.3"
+JSON = "0.21, 1"
+julia = "1.9"
+CUDA = "5"
+AMDGPU = "0.9, 1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
