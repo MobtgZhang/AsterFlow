@@ -124,6 +124,10 @@ end
         (Adagrad, (; lr = 1f-2)),
         (Adadelta, (;)),
         (Adamax, (; lr = 5f-4)),
+        (RAdam, (; lr = 5f-4)),
+        (AdaFactor, (; lr = 1f-3)),
+        (Lion, (; lr = 1f-4)),
+        (Sophia, (; lr = 1f-3, rho = 1f1)),
     )
         train!(m)
         yhat = m(x)
@@ -132,6 +136,12 @@ end
         backward(loss)
         step!(Opt(params(m); kws...))
     end
+    train!(m)
+    yhat = m(x)
+    loss = mse_loss(yhat, y)
+    zero_grad!.(params(m))
+    backward(loss)
+    step!(Lookahead(Adam(params(m); lr = 5f-4); k = 2, alpha = 0.5f0))
     m2 = train!(Sequential(Linear(3, 2)))
     x2 = tensor(randn(Float32, 4, 3))
     loss2 = mse_loss(m2(x2), tensor(randn(Float32, 4, 2)))

@@ -35,7 +35,8 @@ export mse_loss, l1_loss, cross_entropy_loss, nll_loss
 export xavier_uniform!, xavier_normal!, kaiming_uniform!, kaiming_normal!, init_linear!
 export relu, tanh_act, sigmoid_act, gelu, dropout, functional_linear
 export dev_ones, dev_zeros, dev_fill, tensor_on_device
-export SGD, AdamW, Adam, RMSprop, Adagrad, Adadelta, Adamax, step!
+export SGD, AdamW, Adam, RMSprop, Adagrad, Adadelta, Adamax
+export RAdam, Lookahead, AdaFactor, Lion, Sophia, step!
 export TransformerBlock, Embedding, TinyGPT, CausalSelfAttention
 export state_dict, load_state_dict!, expected_state_keys
 export load_safetensors, save_safetensors, save_weights_bson, load_weights_bson
@@ -95,6 +96,11 @@ include("optimise/rmsprop.jl")
 include("optimise/adagrad.jl")
 include("optimise/adadelta.jl")
 include("optimise/adamax.jl")
+include("optimise/radam.jl")
+include("optimise/lookahead.jl")
+include("optimise/adafactor.jl")
+include("optimise/lion.jl")
+include("optimise/sophia.jl")
 
 ## --- Transformer 块 ---
 
