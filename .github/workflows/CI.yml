@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  aster_native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure, build, test aster_native
+        run: |
+          cd aster_native
+          cmake -S . -B build -DASTERFLOW_NATIVE_BUILD_TESTS=ON
+          cmake --build build -j2
+          ctest --test-dir build --output-on-failure
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ["1.9", "1.10", "1.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/cache@v2
+      - name: Build libasterflow (optional)
+        run: |
+          cd libasterflow && cmake -S . -B build && cmake --build build || true
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
