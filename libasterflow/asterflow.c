@@ -44,3 +44,9 @@ void af_relu_f32(const float* x, float* y, int64_t n) {
         y[i] = v > 0.f ? v : 0.f;
     }
 }
+
+void af_add_f32(const float* a, const float* b, float* y, int64_t n) {
+    for (int64_t i = 0; i < n; i++) {
+        y[i] = a[i] + b[i];
+    }
+}

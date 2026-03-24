@@ -23,6 +23,8 @@ void af_matmul_f32_colmajor(
 
 void af_relu_f32(const float* x, float* y, int64_t n);
 
+void af_add_f32(const float* a, const float* b, float* y, int64_t n);
+
 #ifdef __cplusplus
 }
 #endif
