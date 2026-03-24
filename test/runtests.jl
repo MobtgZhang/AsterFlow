@@ -201,3 +201,94 @@ end
         @test true
     end
 end
+
+@testset "backward gradient=, retain_graph, broadcast, layout" begin
+    ## 非标量 backward + 显式 gradient
+    a = tensor(ones(Float32, 2, 3); requires_grad = true)
+    b = add(a, a)
+    g = tensor(ones(Float32, 2, 3))
+    backward(b; gradient = g)
+    @test to_array(a.grad) ≈ 2 .* ones(Float32, 2, 3)
+
+    ## 广播加法反传
+    x = tensor(ones(Float32, 4, 1); requires_grad = true)
+    y = tensor(ones(Float32, 1, 3); requires_grad = true)
+    z = add(x, y)
+    backward(z; gradient = tensor(ones(Float32, 4, 3)))
+    @test sum(to_array(x.grad)) ≈ 12f0
+    @test sum(to_array(y.grad)) ≈ 12f0
+
+    ## permute / reshape 反传
+    p = tensor(randn(Float32, 2, 5); requires_grad = true)
+    q = permute_tensor(p, (2, 1))
+    backward(q; gradient = tensor(ones(Float32, 5, 2)))
+    @test size(p.grad) == (2, 5)
+    r = tensor(randn(Float32, 6); requires_grad = true)
+    s = reshape_tensor(r, (2, 3))
+    backward(s; gradient = tensor(ones(Float32, 2, 3)))
+    @test size(r.grad) == (6,)
+
+    ## expand 反传
+    e = tensor(ones(Float32, 1, 3); requires_grad = true)
+    ex = expand_tensor(e, (4, 3))
+    backward(ex; gradient = tensor(ones(Float32, 4, 3)))
+    @test vec(to_array(e.grad)) ≈ fill(4f0, 3)
+
+    ## retain_graph 保留 grad_fn
+    u = tensor(ones(Float32, 1, 1); requires_grad = true)
+    v = scale_tensor(u, 3f0)
+    backward(v; retain_graph = true)
+    @test v.grad_fn !== nothing
+end
+
+@testset "detach_tensor, setindex error, registry, IR, fusion, scaler, AdamWGroup" begin
+    t = tensor(ones(Float32, 2, 2); requires_grad = true)
+    d = detach_tensor(t)
+    @test d.grad_fn === nothing && !d.requires_grad
+    @test_throws ErrorException AsterFlow.setindex_tensor!(t, 0f0, CartesianIndex(1, 1))
+
+    rep = registered_ops_report()
+    @test haskey(rep, BACKEND_CPU)
+    @test :add in rep[BACKEND_CPU]
+
+    @test ir_infer_binary_output_shape([2, 3], [3, 4], IR_MatMul) == [2, 4]
+    g0 = IRGraph()
+    @test fuse_linear_relu_chain!(g0) === g0
+
+    gs = GradScaler(init_scale = 1.0f0)
+    x = tensor(ones(Float32, 1, 1); requires_grad = true)
+    y = scale_loss(gs, scale_tensor(x, 2f0))
+    @test to_array(y)[1] ≈ 2f0
+
+    m = Sequential(Linear(2, 2), Identity(), Linear(2, 2))
+    ps1 = [m.layers[1].weight]
+    ps2 = [m.layers[3].weight]
+    opt = AdamW([AdamWGroup(ps1; lr = 1f-2), AdamWGroup(ps2; lr = 1f-3)]; beta1 = 9f-1, beta2 = 999f-3)
+    @test length(opt.groups) == 2
+end
+
+@testset "load_state_dict! strict=false, buffers, ddp stub, checkpoint" begin
+    m = Linear(2, 2)
+    d = Dict("weight" => to_array(m.weight))
+    load_state_dict!(m, d; strict = false)
+    @test length(buffers(train!(BatchNorm1d(3)))) >= 2
+    ddp_barrier!()
+    ddp_allreduce_mean_grads!(params(m); nprocs = 1)
+    @test checkpoint(identity, 1) == 1
+end
+
+@testset "finite difference grad sanity" begin
+    w0 = 0.5f0
+    loss_fn(w) = begin
+        tt = tensor(fill(w, 1, 1); requires_grad = true)
+        sum_tensor(mul(tt, tt))
+    end
+    epsv = 1.0f-3
+    l1 = to_array(loss_fn(w0 + epsv))[1]
+    l2 = to_array(loss_fn(w0 - epsv))[1]
+    fd = (l1 - l2) / (2 * epsv)
+    t = tensor(fill(w0, 1, 1); requires_grad = true)
+    backward(sum_tensor(mul(t, t)))
+    ad = to_array(t.grad)[1]
+    @test isapprox(fd, ad; rtol = 5.0f-2)
+end
