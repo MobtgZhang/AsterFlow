@@ -140,3 +140,57 @@ function _collect_params!(m::Module, ps::Vector{Tensor})
     end
     return ps
 end
+
+"""不参与优化的张量（`requires_grad==false` 的字段），如 BN 的 running 统计。"""
+function buffers(m::Module)
+    bs = Tensor[]
+    _collect_buffers!(m, bs)
+    return bs
+end
+
+function _collect_buffers!(m::Sequential, bs::Vector{Tensor})
+    for layer in m.layers
+        layer isa Module && _collect_buffers!(layer, bs)
+    end
+    return bs
+end
+
+function _collect_buffers!(m::ModuleList, bs::Vector{Tensor})
+    for layer in m.layers
+        layer isa Module && _collect_buffers!(layer, bs)
+    end
+    return bs
+end
+
+function _collect_buffers!(m::ModuleDict, bs::Vector{Tensor})
+    for (_, layer) in m.layers
+        layer isa Module && _collect_buffers!(layer, bs)
+    end
+    return bs
+end
+
+function _collect_buffers!(m::Module, bs::Vector{Tensor})
+    m isa Sequential && return _collect_buffers!(m, bs)
+    m isa ModuleList && return _collect_buffers!(m, bs)
+    m isa ModuleDict && return _collect_buffers!(m, bs)
+    for nm in fieldnames(typeof(m))
+        nm == :training && continue
+        x = getfield(m, nm)
+        if x isa Tensor && !x.requires_grad
+            push!(bs, x)
+        elseif x isa Module
+            _collect_buffers!(x, bs)
+        elseif x isa Tuple || x isa AbstractVector
+            for y in x
+                y isa Tensor && !y.requires_grad && push!(bs, y)
+                y isa Module && _collect_buffers!(y, bs)
+            end
+        elseif x isa AbstractDict
+            for y in values(x)
+                y isa Tensor && !y.requires_grad && push!(bs, y)
+                y isa Module && _collect_buffers!(y, bs)
+            end
+        end
+    end
+    return bs
+end

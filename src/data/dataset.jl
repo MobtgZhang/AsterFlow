@@ -90,11 +90,21 @@ mutable struct DataLoader
     dataset::AbstractDataset
     batchsize::Int
     shuffle::Bool
+    collate_fn::Any
+    num_workers::Int
 end
 
-function DataLoader(dataset::AbstractDataset; batchsize::Int = 1, shuffle::Bool = false)
+function DataLoader(
+    dataset::AbstractDataset;
+    batchsize::Int = 1,
+    shuffle::Bool = false,
+    collate_fn = nothing,
+    num_workers::Int = 0,
+)
     batchsize >= 1 || error("DataLoader: batchsize >= 1")
-    return DataLoader(dataset, batchsize, shuffle)
+    num_workers > 0 &&
+        @warn "DataLoader: num_workers>0 尚未实现多进程预取，当前等价于 0" maxlog = 1
+    return DataLoader(dataset, batchsize, shuffle, collate_fn, num_workers)
 end
 
 function Base.iterate(dl::DataLoader, state = nothing)
@@ -109,6 +119,9 @@ function Base.iterate(dl::DataLoader, state = nothing)
     last = min(pos + dl.batchsize - 1, length(ord))
     idxs = ord[pos:last]
     batch = _take_batch(dl.dataset, idxs)
+    if dl.collate_fn !== nothing
+        batch = dl.collate_fn(batch)
+    end
     return (batch, (ord, last + 1))
 end
 

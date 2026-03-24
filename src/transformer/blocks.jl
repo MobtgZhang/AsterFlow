@@ -1,3 +1,6 @@
+"""因果注意力中使用的掩码大负数（近似 `-inf` 前的 logits 偏置）。"""
+const CAUSAL_ATTN_MASK_NEG = Float32(-1.0f4)
+
 mutable struct Embedding <: Module
     weight::Tensor{Float32,2}
     training::Bool
@@ -59,7 +62,7 @@ function (m::CausalSelfAttention)(x::Tensor{Float32,2})
     Ma = zeros(Float32, L, L)
     for i in 1:L, j in 1:L
         if j > i
-            Ma[i, j] = -1f4
+            Ma[i, j] = CAUSAL_ATTN_MASK_NEG
         end
     end
     mask_t = tensor_on_device(Float32, Ma, x.device; requires_grad = false)

@@ -1,4 +1,5 @@
 ## 加速器上的优化器步进：各后端扩展在 __init__ 中 `register_*_accelerator!` 注册实现。
+## 同步：默认在默认 CUDA 流上异步执行；`to_array` / 主机读回会隐式同步。多流策略见 docs/accelerator-streams.md。
 
 const _OPT_SGD = Dict{Symbol,Base.Callable}()
 const _OPT_ADAMW = Dict{Symbol,Base.Callable}()
@@ -40,6 +41,11 @@ end
 
 function register_adamax_accelerator!(backend::Symbol, fn!::Base.Callable)
     _OPT_ADAMAX[backend] = fn!
+    return nothing
+end
+
+"""占位：未来对接 buffer pool / 显存峰值统计。"""
+function gpu_memory_stats_placeholder!()
     return nothing
 end
 
