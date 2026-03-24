@@ -8,8 +8,10 @@ struct AddBackward <: Node
 end
 inputs_of(n::AddBackward) = (n.a, n.b)
 function apply_backward!(n::AddBackward, grad_out::Tensor)
-    accumulate_grad!(n.a, grad_out)
-    accumulate_grad!(n.b, grad_out)
+    no_grad() do
+        accumulate_grad!(n.a, sum_grad_to_shape(grad_out, size(n.a)))
+        accumulate_grad!(n.b, sum_grad_to_shape(grad_out, size(n.b)))
+    end
 end
 
 struct SubBackward <: Node
@@ -18,8 +20,10 @@ struct SubBackward <: Node
 end
 inputs_of(n::SubBackward) = (n.a, n.b)
 function apply_backward!(n::SubBackward, grad_out::Tensor)
-    accumulate_grad!(n.a, grad_out)
-    accumulate_grad!(n.b, mul_scalar_tensor(grad_out, -1))
+    no_grad() do
+        accumulate_grad!(n.a, sum_grad_to_shape(grad_out, size(n.a)))
+        accumulate_grad!(n.b, sum_grad_to_shape(mul_scalar_tensor(grad_out, -1), size(n.b)))
+    end
 end
 
 struct DivBackward <: Node
@@ -28,9 +32,13 @@ struct DivBackward <: Node
 end
 inputs_of(n::DivBackward) = (n.a, n.b)
 function apply_backward!(n::DivBackward, grad_out::Tensor)
-    accumulate_grad!(n.a, div_op_tensor(grad_out, n.b))
-    b2 = mul_tensor(n.b, n.b)
-    accumulate_grad!(n.b, mul_scalar_tensor(div_op_tensor(mul_tensor(grad_out, n.a), b2), -1))
+    no_grad() do
+        ga = div_op_tensor(grad_out, n.b)
+        b2 = mul_tensor(n.b, n.b)
+        gb = mul_scalar_tensor(div_op_tensor(mul_tensor(grad_out, n.a), b2), -1)
+        accumulate_grad!(n.a, sum_grad_to_shape(ga, size(n.a)))
+        accumulate_grad!(n.b, sum_grad_to_shape(gb, size(n.b)))
+    end
 end
 
 struct MulBackward <: Node
@@ -41,8 +49,12 @@ struct MulBackward <: Node
 end
 inputs_of(n::MulBackward) = (n.a, n.b)
 function apply_backward!(n::MulBackward, grad_out::Tensor)
-    accumulate_grad!(n.a, mul_tensor(grad_out, n.saved_b))
-    accumulate_grad!(n.b, mul_tensor(grad_out, n.saved_a))
+    no_grad() do
+        ga = mul_tensor(grad_out, n.saved_b)
+        gb = mul_tensor(grad_out, n.saved_a)
+        accumulate_grad!(n.a, sum_grad_to_shape(ga, size(n.a)))
+        accumulate_grad!(n.b, sum_grad_to_shape(gb, size(n.b)))
+    end
 end
 
 struct MatMulBackward <: Node
@@ -53,10 +65,48 @@ inputs_of(n::MatMulBackward) = (n.a, n.b)
 function apply_backward!(n::MatMulBackward, grad_out::Tensor)
     a, b = n.a, n.b
     if ndims(a) == 2 && ndims(b) == 2
-        accumulate_grad!(a, matmul_ng(grad_out, permute_tensor(b, (2, 1))))
-        accumulate_grad!(b, matmul_ng(permute_tensor(a, (2, 1)), grad_out))
+        no_grad() do
+            accumulate_grad!(a, matmul_ng(grad_out, _permute_storage(b, (2, 1))))
+            accumulate_grad!(b, matmul_ng(_permute_storage(a, (2, 1)), grad_out))
+        end
     else
         error("MatMulBackward: only 2D in MVP")
+    end
+end
+
+struct PermuteBackward <: Node
+    input::Tensor
+    forward_perm::Tuple{Vararg{Int}}
+end
+inputs_of(n::PermuteBackward) = (n.input,)
+function apply_backward!(n::PermuteBackward, grad_out::Tensor)
+    invp = invperm(n.forward_perm)
+    no_grad() do
+        accumulate_grad!(n.input, _permute_storage(grad_out, invp))
+    end
+end
+
+struct ReshapeBackward <: Node
+    input::Tensor
+    input_size::Tuple{Vararg{Int}}
+end
+inputs_of(n::ReshapeBackward) = (n.input,)
+function apply_backward!(n::ReshapeBackward, grad_out::Tensor)
+    no_grad() do
+        accumulate_grad!(n.input, _reshape_storage(grad_out, n.input_size))
+    end
+end
+
+struct ExpandBackward <: Node
+    input::Tensor
+    input_size::Tuple{Int,Int}
+    expanded_size::Tuple{Int,Int}
+end
+inputs_of(n::ExpandBackward) = (n.input,)
+function apply_backward!(n::ExpandBackward, grad_out::Tensor)
+    no_grad() do
+        g = sum_grad_to_expand2d(grad_out, n.input_size, n.expanded_size)
+        accumulate_grad!(n.input, g)
     end
 end
 

@@ -15,6 +15,15 @@ end
 
 """
 `Tensor` 使用 1D `storage` + `size` + `strides` + `offset`（元素偏移），与 PyTorch 式元数据一致。
+
+- **`storage`**：底层缓冲（CPU 为 `Vector`，CUDA 等为 `CuArray` 等）。
+- **`size` / `strides` / `offset`**：列主（dim 1 最快），与 Julia `Array` / BLAS 一致。
+- **`device`**：逻辑设备，供 `dispatch_op` 选择内核。
+- **`requires_grad`**：是否参与 autograd；叶子可写 `requires_grad!`。
+- **`grad`**：反向累加缓冲区；`zero_grad!` 清空。
+- **`grad_fn`**：产生本张量的 `Node`；`detach_tensor` 会置空。
+
+共享 storage 的视图（`view_tensor` / `permute` / 部分 `reshape`）在反传时通过各自 `grad_fn` 把梯度写回同一 storage 上的逻辑位置。
 """
 mutable struct Tensor{T,N}
     storage::AbstractVector{T}
@@ -55,6 +64,9 @@ end
 end
 
 function setindex_tensor!(t::Tensor{T,N}, v, I::CartesianIndex{N}) where {T,N}
+    if t.requires_grad && grad_enabled()
+        error("setindex_tensor!: 在追踪梯度时禁止 inplace 写入 requires_grad 张量")
+    end
     @inbounds t.storage[_linear_index(t, I)] = v
     return t
 end
@@ -120,31 +132,38 @@ function view_tensor(
     Tensor{T,M}(t.storage, newsize, newstrides, t.offset + newoffset, t.device, t.requires_grad, nothing, t.grad_fn)
 end
 
-function reshape_tensor(t::Tensor, newsize::Tuple{Vararg{Int}})
-    if prod(newsize) != numel(t)
-        error("reshape: numel mismatch")
-    end
-    if is_contiguous(t)
-        N = length(newsize)
-        return Tensor{eltype(t),N}(
-            t.storage,
-            newsize,
-            column_major_strides(newsize),
-            t.offset,
-            t.device,
-            t.requires_grad,
-            nothing,
-            t.grad_fn,
-        )
-    end
-    return reshape_tensor(contiguous(t), newsize)
-end
-
-function permute_tensor(t::Tensor{T,N}, perm::NTuple{N,Int}) where {T,N}
+"""无 autograd 记录的 permute（内部反向与 matmul 等使用）。"""
+function _permute_storage(t::Tensor{T,N}, perm::NTuple{N,Int}) where {T,N}
     isperm(perm) || error("invalid permutation")
     newsz = ntuple(k -> t.size[perm[k]], N)
     newst = ntuple(k -> t.strides[perm[k]], N)
-    return Tensor{T,N}(t.storage, newsz, newst, t.offset, t.device, t.requires_grad, nothing, t.grad_fn)
+    return Tensor{T,N}(t.storage, newsz, newst, t.offset, t.device, false, nothing, nothing)
+end
+
+"""无 autograd 记录的 reshape（假定调用方已保证 contiguous 或语义正确）。"""
+function _reshape_storage(t::Tensor, newsize::Tuple{Vararg{Int}})
+    if prod(newsize) != numel(t)
+        error("reshape: numel mismatch")
+    end
+    if !is_contiguous(t)
+        return _reshape_storage(contiguous(t), newsize)
+    end
+    N = length(newsize)
+    return Tensor{eltype(t),N}(
+        t.storage,
+        newsize,
+        column_major_strides(newsize),
+        t.offset,
+        t.device,
+        false,
+        nothing,
+        nothing,
+    )
+end
+
+"""截断计算图，保留数据与设备（PyTorch `tensor.detach()`；Julia 中避免与 `Base.detach(::Cmd)` 同名冲突）。"""
+function detach_tensor(t::Tensor{T,N}) where {T,N}
+    Tensor{T,N}(t.storage, t.size, t.strides, t.offset, t.device, false, nothing, nothing)
 end
 
 function Base.copy(t::Tensor{T,N}) where {T,N}

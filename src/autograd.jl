@@ -1,10 +1,15 @@
-function backward(root::Tensor; retain_graph::Bool = false)
-    if numel(root) != 1
-        error("backward: MVP 仅支持标量 loss（numel==1）")
-    end
-    if root.grad === nothing
+function backward(root::Tensor; retain_graph::Bool = false, gradient::Union{Nothing,Tensor} = nothing)
+    if gradient === nothing
+        numel(root) != 1 &&
+            error("backward: 非标量张量须提供 gradient=（与 root 同形状的梯度张量）")
+        root.grad === nothing || error("backward: 请先 zero_grad! 再对同一 loss 反传")
         T = eltype(root)
-        root.grad = dev_ones(T, (1, 1), root.device)
+        root.grad = dev_ones(T, size(root), root.device)
+    else
+        size(gradient) == size(root) ||
+            error("backward: gradient 形状须与 root 一致 $(size(gradient)) vs $(size(root))")
+        root.grad === nothing || error("backward: root.grad 已存在，请先 zero_grad!")
+        root.grad = gradient
     end
     backward_from(root, retain_graph)
     return nothing
@@ -30,7 +35,9 @@ function backward_from(root::Tensor, retain_graph::Bool)
         g === nothing && continue
         fn = t.grad_fn
         fn === nothing && continue
-        apply_backward!(fn, g)
+        no_grad() do
+            apply_backward!(fn, g)
+        end
     end
     if !retain_graph
         for t in stack

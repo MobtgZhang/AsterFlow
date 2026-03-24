@@ -91,3 +91,20 @@ function af_relu_nograd(a::Tensor{Float32,N}) where {N}
     ccall(f, Cvoid, (Ptr{Float32}, Ptr{Float32}, Int64), x, y, n)
     return tensor(y; device = a.device, requires_grad = false)
 end
+
+function af_add_nograd(a::Tensor{Float32,N}, b::Tensor{Float32,N}) where {N}
+    size(a) == size(b) || error("af_add: shape mismatch")
+    if isempty(_AF_LIB[])
+        return native_cpu_add(a, b)
+    end
+    h = dlopen(_AF_LIB[]; throw_error=false)
+    h === nothing && return native_cpu_add(a, b)
+    f = dlsym(h, :af_add_f32)
+    f === nothing && return native_cpu_add(a, b)
+    aa = to_array(a)
+    ba = to_array(b)
+    y = similar(aa)
+    n = length(aa)
+    ccall(f, Cvoid, (Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64), aa, ba, y, n)
+    return tensor(y; device = a.device, requires_grad = false)
+end

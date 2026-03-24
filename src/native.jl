@@ -1,24 +1,31 @@
 ## CPU 原生算子：仅张量数学，不挂 autograd
+## 与 `aster_native/` C++ 骨架的命名对齐见 `list_native_cpu_ops()`；Julia 主路径仍以本文件注册为准。
 
-function native_cpu_add(a::Tensor{T,N}, b::Tensor{T,N}) where {T,N}
-    size(a) == size(b) || error("add: shape mismatch")
-    aa = to_array(a)
-    ba = to_array(b)
-    tensor(aa .+ ba; device = a.device, requires_grad = false)
+@inline function _use_native_cpp()
+    return get(ENV, "ASTERFLOW_USE_NATIVE_CPP", "") == "1"
 end
 
-function native_cpu_sub(a::Tensor{T,N}, b::Tensor{T,N}) where {T,N}
-    size(a) == size(b) || error("sub: shape mismatch")
+function native_cpu_add(a::Tensor{Float32,N}, b::Tensor{Float32,N}) where {N}
+    ## C++ add 仅支持同形状；广播仍走 Julia。
+    if size(a) == size(b) && _use_native_cpp() && asterflow_native_version() >= 0
+        return an_native_add_nograd(a, b)
+    end
+    return tensor(to_array(a) .+ to_array(b); device = a.device, requires_grad = false)
+end
+
+function native_cpu_add(a::Tensor, b::Tensor)
+    tensor(to_array(a) .+ to_array(b); device = a.device, requires_grad = false)
+end
+
+function native_cpu_sub(a::Tensor, b::Tensor)
     tensor(to_array(a) .- to_array(b); device = a.device, requires_grad = false)
 end
 
-function native_cpu_mul(a::Tensor{T,N}, b::Tensor{T,N}) where {T,N}
-    size(a) == size(b) || error("mul: shape mismatch")
+function native_cpu_mul(a::Tensor, b::Tensor)
     tensor(to_array(a) .* to_array(b); device = a.device, requires_grad = false)
 end
 
-function native_cpu_div(a::Tensor{T,N}, b::Tensor{T,N}) where {T,N}
-    size(a) == size(b) || error("div: shape mismatch")
+function native_cpu_div(a::Tensor, b::Tensor)
     tensor(to_array(a) ./ to_array(b); device = a.device, requires_grad = false)
 end
 
@@ -28,6 +35,9 @@ function native_cpu_matmul_julia(a::Tensor{T,2}, b::Tensor{T,2}) where {T}
 end
 
 function native_cpu_matmul(a::Tensor{T,2}, b::Tensor{T,2}) where {T}
+    if T === Float32 && _use_native_cpp() && asterflow_native_version() >= 0
+        return an_native_matmul_nograd(a, b)
+    end
     if T === Float32 && libasterflow_version() >= 0
         return af_matmul_nograd(a, b)
     end
@@ -72,6 +82,9 @@ function native_cpu_relu_julia(a::Tensor{T,N}) where {T,N}
 end
 
 function native_cpu_relu(a::Tensor{Float32,N}) where {N}
+    if _use_native_cpp() && asterflow_native_version() >= 0
+        return an_native_relu_nograd(a)
+    end
     if libasterflow_version() >= 0
         return af_relu_nograd(a)
     end
@@ -135,6 +148,31 @@ function native_cpu_leaky_relu_bwd(
     gi = to_array(grad)
     mask = ifelse.(xi .> 0, one(T), α)
     tensor(gi .* mask; device = inp.device, requires_grad = false)
+end
+
+"""已注册的 CPU 内核符号列表（与 `register_native_cpu!` 同步）。"""
+function list_native_cpu_ops()
+    return Symbol[
+        :add,
+        :sub,
+        :mul,
+        :div,
+        :matmul,
+        :sum,
+        :mean,
+        :exp,
+        :log,
+        :sqrt,
+        :relu,
+        :softmax_rows,
+        :scale,
+        :relu_bwd,
+        :softmax_rows_bwd,
+        :tanh,
+        :sigmoid,
+        :leaky_relu,
+        :leaky_relu_bwd,
+    ]
 end
 
 function register_native_cpu!()

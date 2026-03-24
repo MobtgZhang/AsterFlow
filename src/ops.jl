@@ -2,6 +2,7 @@
 
 function add(a::Tensor, b::Tensor)
     out = dispatch_op(:add, a.device, a, b)
+    trace_try_record!(:add, (a, b), out)
     if grad_enabled() && (a.requires_grad || b.requires_grad)
         out.requires_grad = true
         out.grad_fn = AddBackward(a, b)
@@ -42,6 +43,7 @@ end
 
 function matmul(a::Tensor{T,2}, b::Tensor{T,2}) where {T}
     out = dispatch_op(:matmul, a.device, a, b)
+    trace_try_record!(:matmul, (a, b), out)
     if grad_enabled() && (a.requires_grad || b.requires_grad)
         out.requires_grad = true
         out.grad_fn = MatMulBackward(a, b)
