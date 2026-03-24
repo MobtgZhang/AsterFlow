@@ -5,9 +5,12 @@
 using AsterFlow
 
 function main()
-    m = train!(Sequential(Linear(8, 16), ReLU(), Linear(16, 1)))
-    x = tensor(randn(Float32, 32, 8))
-    y = tensor(randn(Float32, 32, 1))
+    dev = let d = accelerator_from_env()
+        (d !== nothing && isavailable(d)) ? d : CPUDevice()
+    end
+    m = train!(Sequential(Linear(8, 16; device = dev), ReLU(), Linear(16, 1; device = dev)))
+    x = tensor(randn(Float32, 32, 8); device = dev)
+    y = tensor(randn(Float32, 32, 1); device = dev)
     opt = AdamW(params(m), lr = 5f-3)
     for it in 1:20
         yhat = m(x)
