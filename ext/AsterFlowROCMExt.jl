@@ -51,11 +51,13 @@ function rocm_dev_fill!(::Type{T}, sz::Tuple{Vararg{Int}}, v, dev::AsterFlow.Acc
 end
 
 function rocm_materialize_strided!(t::AsterFlow.Tensor{T,N}) where {T,N}
-    out = Array{T}(undef, t.size)
-    for I in CartesianIndices(t.size)
-        out[I] = AMDGPU.@allowscalar AsterFlow.getindex_tensor(t, I)
+    AMDGPU.@allowscalar begin
+        out = Array{T}(undef, t.size)
+        for I in CartesianIndices(t.size)
+            out[I] = AsterFlow.getindex_tensor(t, I)
+        end
+        return out
     end
-    return out
 end
 
 function rocm_contiguous_accel!(t::AsterFlow.Tensor{T,N}) where {T,N}
