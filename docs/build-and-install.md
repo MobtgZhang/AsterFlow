@@ -62,21 +62,40 @@ Julia 侧按以下顺序查找（见 `src/libasterflow.jl`）：
 
 ---
 
-## 4. 构建 C++ 骨架（`aster_native` 模块）
+## 4. 构建 C++ 原生运行时（`aster_native` 模块）
 
 源码位于 **`aster_native/AsterNative/`**，由 **`aster_native/CMakeLists.txt`** 聚合（`project(asterflow_native LANGUAGES CXX)`，`CXX_STANDARD 17`）。
 
-典型流程：
+典型流程（含可选 C++ 单测，推荐 CI 与本地校验时开启）：
 
 ```bash
 cd aster_native
-cmake -S . -B build
+cmake -S . -B build -DASTERFLOW_NATIVE_BUILD_TESTS=ON
 cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
-静态库示例路径：`aster_native/build/AsterNative/libaf_native_tensor.a`（具体以生成树为准）。
+产物（路径以生成树为准）：
 
-该目标与 Julia 包的 **可选** `ccall` 路径独立；当前 Julia 主要对接 **`libasterflow` 模块** 的共享库。长期可将两模块在 ABI 层合并演进。
+| 产物 | 示例路径（Linux） |
+|------|-------------------|
+| **共享库** `libasterflow_native.so` | `aster_native/build/AsterNative/libasterflow_native.so` |
+| 静态库 `libaf_native_tensor.a` | `aster_native/build/AsterNative/libaf_native_tensor.a` |
+
+稳定 C 头文件：`aster_native/include/asterflow_native.h`（`af_native_version`、`af_native_matmul_f32_colmajor` 等）。
+
+Julia 侧按以下顺序查找共享库（见 `src/libasterflow_native.jl`）：
+
+1. 环境变量 **`ASTERFLOW_NATIVE_LIB`**：指向 `.so` / `.dylib` / `.dll` 的绝对路径（最高优先级）。  
+2. 仓库根下 **`aster_native/build/AsterNative/libasterflow_native.so`**（macOS 为 `.dylib`，Windows 为 `asterflow_native.dll`）。
+
+未找到库时，算子仍走 Julia / `libasterflow` 既有路径，包可正常使用。
+
+### 4.1 使用 C++ CPU 内核（可选）
+
+设置 **`ASTERFLOW_USE_NATIVE_CPP=1`** 且成功加载 `libasterflow_native` 时，`Float32` 的 **`add` / `relu` / `matmul`** 会优先调用 `aster_native` 导出函数（见 `src/native.jl`）。默认不设置该变量，行为与仅使用 `libasterflow` 时一致。
+
+`libasterflow` 与 `libasterflow_native` 由不同环境变量定位，可并存；详见 [`aster_native/README.md`](../aster_native/README.md)。
 
 ---
 
@@ -85,6 +104,8 @@ cmake --build build
 | 变量 | 作用 |
 |------|------|
 | **`ASTERFLOW_LIB`** | 显式指定 `libasterflow` 动态库路径 |
+| **`ASTERFLOW_NATIVE_LIB`** | 显式指定 `libasterflow_native`（`aster_native` 共享库）路径 |
+| **`ASTERFLOW_USE_NATIVE_CPP`** | 设为 `1` 时，在已加载 `libasterflow_native` 的前提下，`Float32` 的 `add` / `relu` / `matmul` 可走 C++ 路径 |
 | **`ASTERFLOW_DEVICE`** | 从环境解析默认设备，例如 `cuda:0`（推荐） |
 | **`ASTERFLOW_ACCELERATOR`** | 与上一项兼容的别名 |
 
@@ -118,7 +139,7 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 完整愿景包括 **`project(... LANGUAGES CXX CUDA)`、cuBLAS/cuDNN、pybind11、Python 包** 等。本仓库**当前** CMake 为：
 
 - **`libasterflow/`**：仅 **C** 共享库（非 CUDA 工程）。  
-- **`aster_native/`**：**C++17** 骨架，尚未接入 CUDA 语言与 Python 绑定。
+- **`aster_native/`**：**C++17** CPU Float32 内核 + 可选共享库；CUDA 语言与 Python 绑定仍为远期项（见 [`aster_native/README.md`](../aster_native/README.md)）。
 
 后续若合并为单一顶层 CMake 或增加 CUDA arch，应同步更新本文档与仓库根 `README.md`。
 
