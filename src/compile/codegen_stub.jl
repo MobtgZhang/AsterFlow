@@ -23,6 +23,7 @@ end
 """
 function codegen_stub_cache(g::IRGraph)
     js = graph_to_json(g)
+    ## 缓存键：`hash(JSON)`；IR schema（`IROpKind` 等）变更时旧缓存自然失效（不同 hash）。
     key = string(hash(js))
     dir = _cache_dir()
     spec_path = joinpath(dir, "$key.toml")

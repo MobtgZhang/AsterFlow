@@ -53,3 +53,14 @@ function ir_set_outputs!(g::IRGraph, ids::Vector{Int})
     g.outputs = copy(ids)
     return g
 end
+
+"""占位：由输入 shape 推导单输出 shape（静态规则）；动态 rank 需运行时填充 attrs。"""
+function ir_infer_binary_output_shape(sh1::Vector{Int}, sh2::Vector{Int}, op::IROpKind)
+    if op == IR_MatMul && length(sh1) >= 2 && length(sh2) >= 2
+        return [sh1[1], sh2[2]]
+    end
+    if op == IR_Add || op == IR_Mul
+        return length(sh1) >= length(sh2) ? copy(sh1) : copy(sh2)
+    end
+    return copy(sh1)
+end
