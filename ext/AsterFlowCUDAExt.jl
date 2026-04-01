@@ -23,7 +23,17 @@ function AsterFlow.tensor(
     sz = size(data)
     v = vec(copy(data))
     st = AsterFlow.column_major_strides(sz)
-    return AsterFlow.Tensor{T,N}(v, sz, st, 0, device, requires_grad, nothing, nothing)
+    return AsterFlow.Tensor{T,N}(
+        v,
+        sz,
+        st,
+        0,
+        device,
+        requires_grad,
+        nothing,
+        nothing,
+        AsterFlow._new_tensor_version_ref(),
+    )
 end
 
 function cuda_tensor_upload!(
@@ -72,6 +82,7 @@ function cuda_contiguous_accel!(t::AsterFlow.Tensor{T,N}) where {T,N}
         t.requires_grad,
         nothing,
         t.grad_fn,
+        AsterFlow._new_tensor_version_ref(),
     )
 end
 
@@ -88,7 +99,17 @@ function _tensor_from_cuarray(ca::CuArray{T,N}, dev::AsterFlow.AcceleratorDevice
     sz = size(ca)
     v = vec(copy(ca))
     st = AsterFlow.column_major_strides(sz)
-    return AsterFlow.Tensor{T,N}(v, sz, st, 0, dev, false, nothing, nothing)
+    return AsterFlow.Tensor{T,N}(
+        v,
+        sz,
+        st,
+        0,
+        dev,
+        false,
+        nothing,
+        nothing,
+        AsterFlow._new_tensor_version_ref(),
+    )
 end
 
 function cuda_add(a::AsterFlow.Tensor, b::AsterFlow.Tensor)
