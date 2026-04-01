@@ -46,7 +46,7 @@ function tensor_on_device(::Type{T}, a::Array{T,N}, dev::CPUDevice; requires_gra
     sz = size(a)
     v = Base.vec(copy(a))
     st = column_major_strides(sz)
-    return Tensor{T,N}(v, sz, st, 0, dev, requires_grad, nothing, nothing)
+    return Tensor{T,N}(v, sz, st, 0, dev, requires_grad, nothing, nothing, _new_tensor_version_ref())
 end
 
 function tensor_on_device(::Type{T}, a::Array{T,N}, dev::AcceleratorDevice; requires_grad::Bool = false) where {T,N}

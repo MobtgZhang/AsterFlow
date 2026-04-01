@@ -22,6 +22,7 @@ end
 - **`requires_grad`**：是否参与 autograd；叶子可写 `requires_grad!`。
 - **`grad`**：反向累加缓冲区；`zero_grad!` 清空。
 - **`grad_fn`**：产生本张量的 `Node`；`detach_tensor` 会置空。
+- **`version_ref`**：与共享 `storage` 的视图共用同一 `Ref{UInt64}`；inplace 写入递增，供 autograd 检测陈旧计算图。
 
 共享 storage 的视图（`view_tensor` / `permute` / 部分 `reshape`）在反传时通过各自 `grad_fn` 把梯度写回同一 storage 上的逻辑位置。
 """
@@ -34,6 +35,25 @@ mutable struct Tensor{T,N}
     requires_grad::Bool
     grad::Union{Nothing,Tensor{T,N}}
     grad_fn::Any
+    version_ref::Ref{UInt64}
+end
+
+@inline function _new_tensor_version_ref()
+    return Ref{UInt64}(UInt64(0))
+end
+
+@inline function _bump_tensor_version!(t::Tensor)
+    r = t.version_ref
+    r[] = r[] + UInt64(1)
+    return nothing
+end
+
+"""当前 autograd 版本号（与同 storage 视图共享）。"""
+tensor_version(t::Tensor) = t.version_ref[]
+
+@inline function _verify_saved_tensor_version!(t::Tensor, saved::UInt64, name::String = "tensor")
+    t.version_ref[] == saved && return nothing
+    error("backward: tensor was modified in-place after forward ($name)")
 end
 
 Base.eltype(::Tensor{T,N}) where {T,N} = T
@@ -68,6 +88,7 @@ function setindex_tensor!(t::Tensor{T,N}, v, I::CartesianIndex{N}) where {T,N}
         error("setindex_tensor!: 在追踪梯度时禁止 inplace 写入 requires_grad 张量")
     end
     @inbounds t.storage[_linear_index(t, I)] = v
+    _bump_tensor_version!(t)
     return t
 end
 
@@ -78,7 +99,7 @@ function tensor(data::Array{T,N}; device::Device = CPUDevice(), requires_grad::B
     sz = size(data)
     v = Base.vec(copy(data)) # own column-major copy
     st = column_major_strides(sz)
-    Tensor{T,N}(v, sz, st, 0, device, requires_grad, nothing, nothing)
+    Tensor{T,N}(v, sz, st, 0, device, requires_grad, nothing, nothing, _new_tensor_version_ref())
 end
 
 function _storage_to_cpu_array(s::AbstractVector{T}) where {T}
@@ -119,6 +140,7 @@ function contiguous(t::Tensor{T,N}) where {T,N}
         t.requires_grad,
         nothing,
         t.grad_fn,
+        _new_tensor_version_ref(),
     )
 end
 
@@ -129,7 +151,17 @@ function view_tensor(
     newstrides::NTuple{M,Int},
     newoffset::Int,
 ) where {T,N,M}
-    Tensor{T,M}(t.storage, newsize, newstrides, t.offset + newoffset, t.device, t.requires_grad, nothing, t.grad_fn)
+    Tensor{T,M}(
+        t.storage,
+        newsize,
+        newstrides,
+        t.offset + newoffset,
+        t.device,
+        t.requires_grad,
+        nothing,
+        t.grad_fn,
+        t.version_ref,
+    )
 end
 
 """无 autograd 记录的 permute（内部反向与 matmul 等使用）。"""
@@ -137,7 +169,7 @@ function _permute_storage(t::Tensor{T,N}, perm::NTuple{N,Int}) where {T,N}
     isperm(perm) || error("invalid permutation")
     newsz = ntuple(k -> t.size[perm[k]], N)
     newst = ntuple(k -> t.strides[perm[k]], N)
-    return Tensor{T,N}(t.storage, newsz, newst, t.offset, t.device, false, nothing, nothing)
+    return Tensor{T,N}(t.storage, newsz, newst, t.offset, t.device, false, nothing, nothing, t.version_ref)
 end
 
 """无 autograd 记录的 reshape（假定调用方已保证 contiguous 或语义正确）。"""
@@ -158,24 +190,38 @@ function _reshape_storage(t::Tensor, newsize::Tuple{Vararg{Int}})
         false,
         nothing,
         nothing,
+        t.version_ref,
     )
 end
 
 """截断计算图，保留数据与设备（PyTorch `tensor.detach()`；Julia 中避免与 `Base.detach(::Cmd)` 同名冲突）。"""
 function detach_tensor(t::Tensor{T,N}) where {T,N}
-    Tensor{T,N}(t.storage, t.size, t.strides, t.offset, t.device, false, nothing, nothing)
+    Tensor{T,N}(
+        t.storage,
+        t.size,
+        t.strides,
+        t.offset,
+        t.device,
+        false,
+        nothing,
+        nothing,
+        t.version_ref,
+    )
 end
 
 function Base.copy(t::Tensor{T,N}) where {T,N}
-    Tensor{T,N}(copy(t.storage), t.size, t.strides, t.offset, t.device, false, nothing, nothing)
+    Tensor{T,N}(
+        copy(t.storage),
+        t.size,
+        t.strides,
+        t.offset,
+        t.device,
+        false,
+        nothing,
+        nothing,
+        _new_tensor_version_ref(),
+    )
 end
-
-## In-place version counter for autograd safety (minimal)
-mutable struct VersionCounter
-    v::UInt64
-end
-VersionCounter() = VersionCounter(UInt64(0))
-bump!(vc::VersionCounter) = (vc.v += 1; vc)
 
 function _materialize_strided_gpu(t::Tensor)
     return _dispatch_materialize_strided_gpu(t)

@@ -18,10 +18,11 @@ function reshape_tensor(t::Tensor, newsize::Tuple{Vararg{Int}})
         false,
         nothing,
         nothing,
+        t.version_ref,
     )
     if grad_enabled() && t.requires_grad
         out.requires_grad = true
-        out.grad_fn = ReshapeBackward(t, in_sz)
+        out.grad_fn = ReshapeBackward(t, in_sz, tensor_version(t))
     end
     return out
 end
@@ -30,7 +31,7 @@ function permute_tensor(t::Tensor{T,N}, perm::NTuple{N,Int}) where {T,N}
     out = _permute_storage(t, perm)
     if grad_enabled() && t.requires_grad
         out.requires_grad = true
-        out.grad_fn = PermuteBackward(t, perm)
+        out.grad_fn = PermuteBackward(t, perm, tensor_version(t))
     end
     return out
 end
@@ -44,10 +45,20 @@ function expand_tensor(t::Tensor{T,2}, newsize::Tuple{Int,Int}) where {T}
     ((nr == r || r == 1) && (nc == c || c == 1)) || error("expand_tensor: 形状不可广播到 $newsize")
     st1 = r == 1 ? 0 : t.strides[1]
     st2 = c == 1 ? 0 : t.strides[2]
-    out = Tensor{T,2}(t.storage, newsize, (st1, st2), t.offset, t.device, false, nothing, nothing)
+    out = Tensor{T,2}(
+        t.storage,
+        newsize,
+        (st1, st2),
+        t.offset,
+        t.device,
+        false,
+        nothing,
+        nothing,
+        t.version_ref,
+    )
     if grad_enabled() && t.requires_grad
         out.requires_grad = true
-        out.grad_fn = ExpandBackward(t, (r, c), newsize)
+        out.grad_fn = ExpandBackward(t, (r, c), newsize, tensor_version(t))
     end
     return out
 end

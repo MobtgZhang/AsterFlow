@@ -18,6 +18,7 @@ export register_tensor_upload!, register_dev_ones_gpu!, register_dev_zeros_gpu!,
 export register_materialize_strided_gpu!, register_contiguous_accelerator!
 export accelerator_from_env, first_available_accelerator
 export tensor, to_array, numel, is_contiguous, contiguous, reshape_tensor, view_tensor, permute_tensor
+export tensor_version
 export column_major_strides, softmax_rows
 export register_op!, dispatch_op, register_dispatch_fallback!, register_custom_op!, registered_ops_report
 export ASTERFLOW_EXECUTION_MODE
@@ -138,6 +139,8 @@ function __init__()
     _init_libasterflow!()
     _init_libasterflow_native!()
     register_native_cpu!()
+    register_dispatch_fallback!(:cuda, [:cpu])
+    register_dispatch_fallback!(:rocm, [:cpu])
     _register_ascend_npu_backend!()
     _register_rockchip_npu_backend!()
     return nothing
