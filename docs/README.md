@@ -6,6 +6,14 @@
 |------|------|
 | [设计原则与架构](design-principles.md) | 分层、MVP 路线、Dispatcher / Autograd、与 PyTorch 2.x 的对应、语义风险、仓库模块布局 |
 | [构建与安装](build-and-install.md) | Julia 包、`libasterflow` 与 `aster_native` 模块、环境变量、测试与可选加速器扩展 |
+| [Autograd 视图语义](autograd-view-semantics.md) | view/reshape/contiguous 与反传、版本计数与 inplace |
+| [Broadcasting 反传](broadcasting-autograd.md) | 广播梯度规约约定 |
+| [C ABI 与 GC 内存](memory-abi.md) | `ccall` 边界所有权、与加速器缓冲 |
+| [IR 概念设计](ir-concept.md) | 编译 IR 与 autograd 的关系、Pass 约定 |
+| [API 参考（摘要）](api-reference.md) | 公开符号索引 |
+| [性能路线图](roadmap-performance.md) | AMP、融合、FlashAttention、DDP 阶段规划 |
+| [v0.1.0-alpha 发版备忘](RELEASE_v0.1.0-alpha.md) | Pre-release 清单与限制 |
+| [CUDA / 加速器测试](testing-cuda.md) | CI 与本地 E2E 说明 |
 | [快速上手](tutorial-getting-started.md) | 安装、最小训练循环、设备迁移、延伸阅读 |
 | [PyTorch API 对照](pytorch-api-parity.md) | API 表、Linear 权重布局、语义风险冻结 |
 | [算子注册契约](op-contract.md) | `register_op!` 约定、dtype×device、已注册算子报告 API |

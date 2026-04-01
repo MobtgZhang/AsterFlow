@@ -97,6 +97,16 @@ Julia 侧按以下顺序查找共享库（见 `src/libasterflow_native.jl`）：
 
 `libasterflow` 与 `libasterflow_native` 由不同环境变量定位，可并存；详见 [`aster_native/README.md`](../aster_native/README.md)。
 
+### 4.2 `libasterflow` 与 `aster_native` 职责边界（约定）
+
+| 组件 | 角色 |
+|------|------|
+| **`libasterflow`** | 瘦 **C ABI** 共享库：稳定 `ccall` 符号、少量 FP32 核（如 `af_matmul` / `af_add`）；便于无 C++ 运行时的环境。 |
+| **`aster_native`（`libasterflow_native`）** | **C++17** 运行时骨架：与 CMake 测试、现代工具链对齐；在 **`ASTERFLOW_USE_NATIVE_CPP=1`** 且库可用时，对 **Float32** 的 `add` / `relu` / `matmul` 可走 `an_native_*`（见 `src/native.jl`）。 |
+| **Julia 主路径** | 未启用或未命中上述条件时，**以 Julia 实现的 CPU 内核为准**；两套 native 库为**可选加速**，不应被文档暗示为互斥的两种「产品」。 |
+
+**CI 建议**：矩阵中分别跑「不设置 `ASTERFLOW_USE_NATIVE_CPP`」与「`ASTERFLOW_USE_NATIVE_CPP=1` 且已构建 `aster_native`」以捕捉双路径行为差异。
+
 ---
 
 ## 5. 环境变量

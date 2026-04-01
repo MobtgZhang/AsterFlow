@@ -1,9 +1,9 @@
 # 算子注册契约与内核清单
 
-## `register_op!(op::Symbol, backend::Symbol, fn)`
+## `register_op!(op::Symbol, backend::Symbol, fn; dtype=nothing)`
 
-- **registry 键**：`(op, backend)`，其中 `backend` 来自 `device_backend(dev)`（如 `:cpu`、`:cuda`）。
-- **调用方**：`dispatch_op(op, dev, args...; kwargs...)`（见 `src/dispatch.jl`），可选 **fallback 链**（见 `DISPATCH_FALLBACK_CHAIN`）。
+- **registry 键**：`(op, backend, dtype)`，其中 `backend` 来自 `device_backend(dev)`（如 `:cpu`、`:cuda`）；`dtype` 为 `Type` 时表示仅当 `dispatch_op` 从参数中解析到的**首个**张量 `eltype` 与之相等时匹配，`nothing` 为通配（兼容旧注册）。
+- **调用方**：`dispatch_op(op, dev, args...; kwargs...)`（见 `src/dispatch.jl`），先按 `(op, backend, T)` 查找，再回退 `(op, backend, nothing)`；另可选 **fallback 链**（见 `DISPATCH_FALLBACK_CHAIN`，默认已为 `:cuda` / `:rocm` 注册 `→ :cpu`）。
 - **内核 `fn` 约定**：
   - 返回新的 `Tensor`（或约定好的输出），**不**修改输入 storage（除非文档明确为 inplace 内核）。
   - 输入张量须与 `dev` 一致；**不**自动跨设备搬运（与 PyTorch 一致：设备不匹配应报错）。

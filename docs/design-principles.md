@@ -39,7 +39,7 @@
 | PyTorch 2.x | AsterFlow 设计落点 |
 |-------------|-------------------|
 | `Tensor` / `TensorImpl` | 元数据 + `Storage`；Julia 侧 `Tensor`，C++ 侧 `AsterNative` 骨架 |
-| Dispatcher / `DispatchKey` | 按设备后端符号（`:cpu`、`:cuda`、`:rocm`、`:npu` 等）注册与查表 |
+| Dispatcher / `DispatchKey` | 按设备后端符号注册与查表；并支持 **dtype** 键与 **fallback 链**（如 `:cuda` 未实现某算子时尝试 `:cpu`） |
 | Autograd | 张量级动态图：`Node` 子类型 + `backward` 拓扑 |
 | `torch.compile` | Julia 侧 `compile/`：IR、序列化、占位 codegen 与磁盘缓存；长期可对齐全图编译 |
 | 自定义算子 | `register_op!` + 各后端实现；扩展包注册加速器算子 |
