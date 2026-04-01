@@ -60,7 +60,7 @@ function cross_entropy_loss(
     out = tensor(fill(T(acc), 1, 1); device = logits.device, requires_grad = false)
     if grad_enabled() && logits.requires_grad
         out.requires_grad = true
-        out.grad_fn = CrossEntropyBackward(logits, P, Vector{Int}(targets))
+        out.grad_fn = CrossEntropyBackward(logits, P, Vector{Int}(targets), tensor_version(logits))
     end
     return out
 end
@@ -79,7 +79,7 @@ function nll_loss(log_probs::Tensor{T,2}, targets::AbstractVector{Int}) where {T
     out = tensor(fill(T(acc), 1, 1); device = log_probs.device, requires_grad = false)
     if grad_enabled() && log_probs.requires_grad
         out.requires_grad = true
-        out.grad_fn = NLLBackward(log_probs, Vector{Int}(targets))
+        out.grad_fn = NLLBackward(log_probs, Vector{Int}(targets), tensor_version(log_probs))
     end
     return out
 end

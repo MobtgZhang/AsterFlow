@@ -23,7 +23,7 @@ function (e::Embedding)(idx::Matrix{Int})
     t = tensor(reshape(out, B * L, D); device = e.weight.device, requires_grad = false)
     if grad_enabled() && e.weight.requires_grad
         t.requires_grad = true
-        t.grad_fn = EmbeddingBackward(e.weight, copy(idx))
+        t.grad_fn = EmbeddingBackward(e.weight, copy(idx), tensor_version(e.weight))
     end
     return t
 end
