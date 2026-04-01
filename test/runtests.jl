@@ -277,6 +277,51 @@ end
     @test checkpoint(identity, 1) == 1
 end
 
+include(joinpath(@__DIR__, "gradcheck_ops.jl"))
+
+@testset "inplace version invalidates backward" begin
+    x = tensor(Float32[1 2; 3 4]; requires_grad = true)
+    y = relu_tensor(x)
+    no_grad() do
+        setindex_tensor!(x, 0.0f0, CartesianIndex(1, 1))
+    end
+    @test_throws ErrorException backward(sum_tensor(y))
+end
+
+@testset "strided (permute) matmul forward backward" begin
+    a = tensor(Float32[1 2; 3 4]; requires_grad = true)
+    p = permute_tensor(a, (2, 1))  # 非连续
+    b = tensor(Float32[1 0; 0 1])
+    c = matmul(p, b)
+    backward(sum_tensor(c))
+    @test size(a.grad) == (2, 2)
+end
+
+@testset "dispatcher dtype-specific registration" begin
+    reg = getfield(AsterFlow, :OpRegistry)
+    key = (:add, BACKEND_CPU, Float64)
+    prev = get(reg, key, nothing)
+    hit = Ref(false)
+    function add64(a::Tensor, b::Tensor)
+        hit[] = true
+        return tensor(to_array(a) .+ to_array(b); device = a.device, requires_grad = false)
+    end
+    try
+        register_op!(:add, BACKEND_CPU, add64; dtype = Float64)
+        x = tensor(Float64[1.0 2.0]; requires_grad = false)
+        y = tensor(Float64[3.0 4.0]; requires_grad = false)
+        z = add(x, y)
+        @test hit[]
+        @test vec(to_array(z)) ≈ [4.0, 6.0]
+    finally
+        if prev === nothing
+            delete!(reg, key)
+        else
+            reg[key] = prev
+        end
+    end
+end
+
 @testset "finite difference grad sanity" begin
     w0 = 0.5f0
     loss_fn(w) = begin
