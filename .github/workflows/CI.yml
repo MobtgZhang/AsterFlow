@@ -34,3 +34,15 @@ jobs:
           cd libasterflow && cmake -S . -B build && cmake --build build || true
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.11"
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Run micro benchmark script
+        run: julia --project=. benchmark/micro.jl
